@@ -3,7 +3,6 @@ extends SceneTree
 
 const SHOTS := [
 	["res://scenes/HomeScene.tscn", "home"],
-	["res://scenes/ProfileScene.tscn", "profile"],
 	["res://scenes/MapScene.tscn", "map"],
 	["res://scenes/LevelScene.tscn", "level"],
 	["res://scenes/ShopScene.tscn", "shop"],

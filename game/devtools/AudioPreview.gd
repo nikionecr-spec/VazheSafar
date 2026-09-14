@@ -1,56 +1,73 @@
 extends SceneTree
-## موسیقی و جلوه‌های صوتی را به فایل WAV می‌ریزد تا بتوان بیرون از بازی گوش داد.
+## Renders every music track and a few sound effects to WAV so you can listen
+## to them outside the game:  xvfb-run -a godot --path game --script devtools/AudioPreview.gd
+## Files land in the app user folder: ~/.local/share/godot/app_userdata/<name>/audio/
+
+const SECTIONS := ["home", "map", "level", "shop", "quests", "library", "themes", "settings"]
+const SFX := ["letter_0", "letter_5", "btn_down", "btn_up", "word_ok", "word_bonus",
+	"word_bad", "coin", "star", "win", "hint", "shuffle", "chest", "combo"]
+
 
 func _initialize() -> void:
 	_run.call_deferred()
 
+
 func _run() -> void:
 	DirAccess.make_dir_recursive_absolute("user://audio")
 	var au: Node = root.get_node("/root/Audio")
-	var names := ["home", "map", "level", "shop", "quests", "calm"]
-	for n in names:
-		var track: AudioStreamWAV = au.call("_make_track", n)
-		_write("user://audio/music_%s.wav" % n, track)
-		print("music_%s.wav  %.1f s" % [n, float(track.data.size() / 2) / 24000.0])
-	# چند جلوه
-	var sfx := ["letter_0", "letter_5", "btn_down", "btn_up", "word_ok", "word_bonus",
-		"word_bad", "coin", "star", "win", "hint", "shuffle"]
-	for s in sfx:
-		var st: AudioStreamWAV = au.get("_cache").get(s)
+	for s in SECTIONS:
+		var raw: PackedFloat32Array = au.call("_compose", s)
+		var stream: AudioStreamWAV = au.call("_to_wav", raw, true)
+		_write("user://audio/music_%s.wav" % s, stream)
+		print("music_%s.wav   %.1f s" % [s, float(stream.data.size() / 2) / 32000.0])
+	for key in SFX:
+		var cache: Dictionary = au.get("_cache")
+		var st: AudioStreamWAV = cache.get(key)
 		if st != null:
-			_write("user://audio/sfx_%s.wav" % s, st)
-			print("sfx_%s.wav" % s)
+			_write("user://audio/sfx_%s.wav" % key, st)
+			print("sfx_%s.wav" % key)
+	print("done — files in user://audio")
 	quit()
+
 
 func _write(path: String, stream: AudioStreamWAV) -> void:
 	var f := FileAccess.open(path, FileAccess.WRITE)
 	if f == null:
-		push_error("cannot write " + path)
 		return
-	# WAV header (16-bit mono)
-	var data: PackedByteArray = stream.data
-	var sr: int = stream.mix_rate
-	var fh := PackedByteArray()
-	fh.append_array("RIFF".to_ascii_buffer())
-	_put32(fh, 36 + data.size())
-	fh.append_array("WAVE".to_ascii_buffer())
-	fh.append_array("fmt ".to_ascii_buffer())
-	_put32(fh, 16)
-	_put16(fh, 1)
-	_put16(fh, 1)
-	_put32(fh, sr)
-	_put32(fh, sr * 2)
-	_put16(fh, 2)
-	_put16(fh, 16)
-	fh.append_array("data".to_ascii_buffer())
-	_put32(fh, data.size())
-	f.store_buffer(fh)
-	f.store_buffer(data)
+	f.store_buffer(_wav_header(stream))
+	f.store_buffer(stream.data)
 	f.close()
 
-func _put32(buf: PackedByteArray, v: int) -> void:
-	buf.append(v & 0xFF); buf.append((v >> 8) & 0xFF)
-	buf.append((v >> 16) & 0xFF); buf.append((v >> 24) & 0xFF)
 
-func _put16(buf: PackedByteArray, v: int) -> void:
-	buf.append(v & 0xFF); buf.append((v >> 8) & 0xFF)
+func _wav_header(stream: AudioStreamWAV) -> PackedByteArray:
+	var data_size := stream.data.size()
+	var h := PackedByteArray()
+	h.append_array("RIFF".to_ascii_buffer())
+	h.append_array(_le32(36 + data_size))
+	h.append_array("WAVEfmt ".to_ascii_buffer())
+	h.append_array(_le32(16))
+	h.append_array(_le16(1))
+	h.append_array(_le16(1))
+	h.append_array(_le32(stream.mix_rate))
+	h.append_array(_le32(stream.mix_rate * 2))
+	h.append_array(_le16(2))
+	h.append_array(_le16(16))
+	h.append_array("data".to_ascii_buffer())
+	h.append_array(_le32(data_size))
+	return h
+
+
+func _le32(v: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.append(v & 0xFF)
+	b.append((v >> 8) & 0xFF)
+	b.append((v >> 16) & 0xFF)
+	b.append((v >> 24) & 0xFF)
+	return b
+
+
+func _le16(v: int) -> PackedByteArray:
+	var b := PackedByteArray()
+	b.append(v & 0xFF)
+	b.append((v >> 8) & 0xFF)
+	return b

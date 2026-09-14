@@ -63,13 +63,6 @@ static func label(text: String, size: int = 34, color: Color = INK,
 	return l
 
 
-static func right_label(text: String, size: int = 34, color: Color = TEXT_DARK,
-		font: String = FONT_BOLD) -> Label:
-	var l := label(text, size, color, font)
-	l.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
-	return l
-
-
 static func outlined_label(text: String, size: int = 40,
 		color: Color = Color.WHITE, outline: Color = Color("#3d2a14"),
 		outline_size: int = 8) -> Label:

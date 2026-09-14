@@ -147,18 +147,7 @@ func _quest_card(q: Dictionary) -> Control:
 	hb.add_theme_constant_override("separation", 20)
 	hb.alignment = BoxContainer.ALIGNMENT_CENTER
 
-
-# ------------------------------------------------------------------ quests
-func _quest_card(q: Dictionary) -> void:
-	var c := card(232, 30, Color("#fdf6e6"))
-	var row := HBoxContainer.new()
-	row.add_theme_constant_override("separation", 24)
-	row.alignment = BoxContainer.ALIGNMENT_CENTER
-	UI.card_add(c, row, 28.0)
-
-	var progress := int(q["progress"])
-	var goal: int = int(q["goal"])
-	var done := progress >= goal
+	var done: bool = int(q["progress"]) >= int(q["goal"])
 	var claimed: bool = bool(q["claimed"])
 	var btn := JuicyBtn.new()
 	btn.text = "✓" if claimed else ("گرفتن" if done else "در جریان")

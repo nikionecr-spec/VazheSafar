@@ -9,7 +9,6 @@ extends Control
 ##   * combo feedback + gem skip give the loop a second reward channel
 
 const UI := preload("res://scripts/UIKit.gd")
-const ArtL := preload("res://scripts/Art.gd")
 const WheelScript := preload("res://scripts/LetterWheel.gd")
 const IconBtn := preload("res://scripts/IconButton.gd")
 
@@ -31,11 +30,8 @@ var _cell_style_cache: Dictionary = {}
 
 var wheel: LetterWheel
 var board: Control
-var board_card: Control
 var coin_label: Label
 var preview: Label
-var hint_label: Label
-var progress_label: Label
 var bonus_badge: Control
 var bonus_label: Label
 var combo_chip: Control
@@ -72,7 +68,7 @@ func _ready() -> void:
 			_toast("جایزهٔ اولین مرحلهٔ امروز: سکه دوبرابر!")
 
 
-# ==================================================================== chrome
+# ------------------------------------------------------------------- chrome
 func _build_ui() -> void:
 	var bg := TextureRect.new()
 	bg.texture = load("res://assets/art/bg_level.png")
@@ -81,7 +77,6 @@ func _build_ui() -> void:
 	bg.set_anchors_preset(Control.PRESET_FULL_RECT)
 	bg.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(bg)
-	add_child(UI.vignette(0.30))
 
 	var scrim := UI.gradient_panel(1080, 340, Color(0.14, 0.08, 0.03, 0.55),
 		Color(0.14, 0.08, 0.03, 0.0), 0, Color(0, 0, 0, 0), 0, 0.0)
@@ -94,8 +89,6 @@ func _build_ui() -> void:
 	back.position = Vector2(28, 44)
 	back.pressed.connect(_on_back_pressed)
 	add_child(back)
-	var back_hit := _hit(Vector2(122, 122), Vector2(24, 40), _on_back_pressed)
-	add_child(back_hit)
 
 	var plaque := UI.glass_card(30, Color(0.30, 0.18, 0.07, 0.80), 22)
 	plaque.position = Vector2(330, 44)
@@ -120,16 +113,6 @@ func _build_ui() -> void:
 	parch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(parch)
 
-	# ---- تابلو کلمات
-	var board_tex := TextureRect.new()
-	board_tex.texture = load("res://assets/art/board_panel.png")
-	board_tex.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	board_tex.stretch_mode = TextureRect.STRETCH_SCALE
-	board_tex.position = Vector2(60, 212)
-	board_tex.size = Vector2(960, 646)
-	board_tex.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	add_child(board_tex)
-	board_card = board_tex
 	board = Control.new()
 	board.position = BOARD_RECT.position
 	board.size = BOARD_RECT.size
@@ -251,22 +234,14 @@ func _find_label(node: Node) -> Label:
 
 
 func _wheel_backdrop() -> void:
-	var glow := ArtL.glow_disc(900, Color(1.0, 0.93, 0.72))
-	glow.position = Vector2(90, 826)
-	glow.modulate.a = 0.40
-	add_child(glow)
-	var sh := ArtL.ground_shadow(670, 120, 0.32)
-	sh.position = Vector2(245, 1584)
-	add_child(sh)
 	var disc := TextureRect.new()
-	disc.texture = ArtL.wheel_texture(512)
+	disc.texture = load("res://assets/art/wheel_base.png")
 	disc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 	disc.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	disc.position = WHEEL_POS - Vector2(28, 28)
 	disc.size = WHEEL_SIZE + Vector2(56, 56)
 	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(disc)
-	# چرخ باید روی زمینه بیفتد (وگرنه کاشی‌ها پوشیده می‌شوند)
 	move_child(disc, wheel.get_index())
 
 
@@ -400,7 +375,7 @@ func _cell_style(revealed: bool, hint: bool = false) -> StyleBoxFlat:
 func _reveal_word(word: String, animate: bool = true) -> void:
 	var cells: Array = _slots.get(word, [])
 	for i in cells.size():
-		var cell: Control = cells[i]
+		var cell: Panel = cells[i]
 		if bool(cell.get_meta("revealed")):
 			continue
 		cell.set_meta("revealed", true)
@@ -428,7 +403,6 @@ func _on_word_changed(w: String) -> void:
 
 func _on_word(word: String) -> void:
 	preview.text = ""
-	_idle_tip.visible = true
 	if _finished:
 		return
 	if answers.has(word):
@@ -436,7 +410,6 @@ func _on_word(word: String) -> void:
 			Audio.play("already")
 			wheel.flash(Color("#6fa8dc"))
 			_pulse_word(word)
-			_toast("«" + word + "» را قبلاً پیدا کرده‌ای")
 			return
 		found[word] = true
 		Audio.play("word_ok")
@@ -502,12 +475,6 @@ func _refresh_combo() -> void:
 		combo_chip.modulate = Color.WHITE
 
 
-func _update_progress() -> void:
-	if progress_label:
-		progress_label.text = "%s از %s کلمه پیدا شد" % [Game.fa_num(found.size()),
-			Game.fa_num(answers.size())]
-
-
 func _pulse_word(word: String) -> void:
 	for cell in _slots.get(word, []):
 		var tw := create_tween()
@@ -516,11 +483,10 @@ func _pulse_word(word: String) -> void:
 
 
 func _show_bonus(word: String) -> void:
-	bonus_label.text = word + "  +۵ سکه"
+	bonus_label.text = word + "  +۵"
 	bonus_badge.visible = true
 	bonus_badge.modulate.a = 0.0
-	bonus_badge.scale = Vector2(0.6, 0.6)
-	bonus_badge.pivot_offset = bonus_badge.size * 0.5
+	var start_y := bonus_badge.position.y
 	var tw := create_tween()
 	tw.tween_property(bonus_badge, "modulate:a", 1.0, 0.15)
 	tw.parallel().tween_property(bonus_badge, "position:y", start_y - 46, 0.9)
@@ -535,9 +501,8 @@ func _on_hint_pressed() -> void:
 	if _finished:
 		return
 	if not Game.spend_coins(Game.HINT_COST):
-		_toast("سکه کافی نداری! می‌توانی از فروشگاه بگیری")
+		_toast("سکه کافی نداری!")
 		Audio.play("word_bad")
-		_vibrate_warning()
 		return
 	hints_used += 1
 	_perfect = false
@@ -627,12 +592,6 @@ func _on_back_pressed() -> void:
 	Transition.change_scene("res://scenes/MapScene.tscn")
 
 
-func _toast(msg: String) -> void:
-	var t := UI.make_toast(msg)
-	add_child(t)
-	t.position = Vector2(UI.SCREEN.x * 0.5 - t.size.x * 0.5, 760)
-
-
 func _check_complete() -> void:
 	if found.size() < answers.size():
 		return
@@ -644,7 +603,7 @@ func _check_complete() -> void:
 	elif hints_used >= 1:
 		earned = 2
 	Audio.play("win")
-	await get_tree().create_timer(0.5).timeout
+	await get_tree().create_timer(0.55).timeout
 	Game.complete_level(level_id, earned, bonus_found)
 	_show_win_popup(earned)
 
@@ -711,7 +670,7 @@ func _word_burst(word: String) -> void:
 	var cells: Array = _slots.get(word, [])
 	if cells.is_empty():
 		return
-	var mid: Control = cells[cells.size() / 2]
+	var mid: Panel = cells[cells.size() / 2]
 	var p := CPUParticles2D.new()
 	p.position = mid.get_global_rect().get_center()
 	p.emitting = true
@@ -737,17 +696,18 @@ func _fly_coins(from: Vector2, count: int) -> void:
 	for i in count:
 		var c := TextureRect.new()
 		c.texture = load("res://assets/icons/coin.png")
+		c.custom_minimum_size = Vector2(52, 52)
+		c.size = c.custom_minimum_size
 		c.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		c.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		c.size = Vector2(58, 58)
 		c.position = from + Vector2(randf_range(-60, 60), randf_range(-60, 60))
-		c.pivot_offset = Vector2(29, 29)
+		c.pivot_offset = Vector2(26, 26)
 		c.z_index = 40
 		add_child(c)
-		var mid := c.position.lerp(target, 0.45) + Vector2(randf_range(-180, 180), -240)
+		var mid := c.position.lerp(target, 0.45) + Vector2(randf_range(-160, 160), -220)
 		var tw := c.create_tween()
 		tw.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-		tw.tween_interval(0.035 * float(i))
+		tw.tween_interval(0.035 * i)
 		tw.tween_property(c, "position", mid, 0.32)
 		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
 		tw.tween_property(c, "position", target, 0.38)

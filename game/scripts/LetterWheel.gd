@@ -6,8 +6,8 @@ class_name LetterWheel
 signal word_submitted(word: String)
 signal word_changed(word: String)
 
-const TILE_R := 78.0
-const HIT_R := 98.0
+const TILE_R := 66.0
+const HIT_R := 84.0
 
 var letters: PackedStringArray = []
 var _tiles: Array = []
@@ -16,7 +16,7 @@ var _dragging := false
 var _pointer := Vector2.ZERO
 var _center := Vector2.ZERO
 var _radius := 0.0
-var _trail := Color("#f7b24a")
+var _trail := Color("#f4a93c")
 var _disabled := false
 var _pulse := 0.0
 var _ripples: Array = []       # {pos, t}
@@ -101,7 +101,7 @@ func _make_tile(letter: String) -> Control:
 	lbl.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 	lbl.add_theme_font_override("font",
 		load("res://assets/fonts/Vazirmatn-Black.ttf"))
-	lbl.add_theme_font_size_override("font_size", 80)
+	lbl.add_theme_font_size_override("font_size", 66)
 	lbl.add_theme_color_override("font_color", Color("#5b3a1c"))
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	holder.add_child(lbl)
@@ -152,7 +152,7 @@ static func _tile_tex(selected: bool) -> Texture2D:
 
 func _layout() -> void:
 	_center = size * 0.5
-	_radius = minf(size.x, size.y) * 0.5 - TILE_R - 2.0
+	_radius = minf(size.x, size.y) * 0.5 - TILE_R - 14.0
 	var n := _tiles.size()
 	for i in n:
 		var ang := -PI / 2.0 + TAU * float(i) / float(maxi(n, 1))
@@ -270,7 +270,7 @@ func flash(color: Color) -> void:
 	var tw := create_tween()
 	tw.tween_interval(0.22)
 	tw.tween_callback(func():
-		_trail = Color("#f7b24a")
+		_trail = Color("#f4a93c")
 		queue_redraw())
 
 
