@@ -64,6 +64,7 @@ func _build_chrome() -> void:
 	_coin_pill.position = Vector2(792, 54)
 	add_child(_coin_pill)
 	coin_label = _coin_pill.get_meta("value_label")
+	coin_label.text = Game.fa_num_grouped(Game.coins)
 	Game.coins_changed.connect(func(v):
 		if is_instance_valid(coin_label):
 			coin_label.text = Game.fa_num_grouped(v))
