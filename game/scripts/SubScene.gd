@@ -1,22 +1,35 @@
 extends Control
 class_name SubScene
-## Shared base for the simple full-screen menus (shop, quests, library, ...).
+## ============================================================================
+##  پایهٔ صفحه‌های منو (فروشگاه، ماموریت‌ها، کتابخانه، تم‌ها، تنظیمات)
+##  ● نوار بالا: بازگشت · پلاک تیتر · سکه
+##  ● بدنهٔ اسکرولیِ تمام‌عرض با کارت‌های گرافیکی
+##  ● نوار پایین با ۵ تب درشت (همیشه در دسترس)
+## ============================================================================
 
 const UI := preload("res://scripts/UIKit.gd")
-const IconBtn := preload("res://scripts/IconButton.gd")
+const ArtL := preload("res://scripts/Art.gd")
 
 @export var screen_title := "صفحه"
+@export var nav_index := -1
 
 var body: VBoxContainer
+var scroll: ScrollContainer
 var coin_label: Label
+var _coin_pill: Control
 
 
 func _ready() -> void:
 	_build_chrome()
 	build_body()
-	animate_cards()
+	_stagger_cards()
 
 
+func build_body() -> void:
+	pass
+
+
+# ------------------------------------------------------------------- chrome
 func _build_chrome() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
@@ -29,85 +42,137 @@ func _build_chrome() -> void:
 	add_child(bg)
 
 	var veil := ColorRect.new()
-	veil.color = Color(0.1, 0.06, 0.02, 0.45)
+	veil.color = Color(0.10, 0.06, 0.02, 0.44)
 	veil.set_anchors_preset(Control.PRESET_FULL_RECT)
 	veil.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(veil)
 
+	add_child(UI.ambient_motes(UI.SCREEN, 20))
+
 	# ---- top bar
-	var back := IconBtn.new()
-	back.icon_path = "res://assets/icons/btn_back.png"
-	back.icon_size = 104.0
-	back.position = Vector2(34, 56)
-	back.pressed.connect(func():
-		Transition.change_scene("res://scenes/HomeScene.tscn"))
+	var back := UI.back_button(122)
+	back.position = Vector2(26, 42)
 	add_child(back)
+	_add_hit(Vector2(122, 122), Vector2(26, 42),
+		func(): Transition.change_scene("res://scenes/HomeScene.tscn"))
 
-	var titlep := PanelContainer.new()
-	titlep.add_theme_stylebox_override("panel", UI.wood_panel(28, 5))
-	titlep.position = Vector2(300, 62)
-	titlep.custom_minimum_size = Vector2(480, 92)
-	var tl := UI.outlined_label(screen_title, 44, Color("#ffe9b8"), Color("#3f2609"), 7)
-	titlep.add_child(tl)
-	add_child(titlep)
+	var plaque := UI.title_plaque(screen_title, Vector2(500, 118), 46)
+	plaque.position = Vector2(290, 44)
+	add_child(plaque)
 
-	var coinp := PanelContainer.new()
-	coinp.add_theme_stylebox_override("panel", UI.gold_pill(30))
-	coinp.position = Vector2(820, 66)
-	var hb := HBoxContainer.new()
-	hb.add_theme_constant_override("separation", 8)
-	coin_label = UI.label(Game.fa_num_grouped(Game.coins), 34, Color("#5b3a1c"))
-	hb.add_child(coin_label)
-	var ci := TextureRect.new()
-	ci.texture = load("res://assets/icons/coin.png")
-	ci.custom_minimum_size = Vector2(52, 52)
-	ci.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
-	ci.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-	hb.add_child(ci)
-	coinp.add_child(hb)
-	add_child(coinp)
+	_coin_pill = UI.coin_pill(Vector2(262, 96), false)
+	_coin_pill.position = Vector2(792, 54)
+	add_child(_coin_pill)
+	coin_label = _coin_pill.get_meta("value_label")
 	Game.coins_changed.connect(func(v):
 		if is_instance_valid(coin_label):
 			coin_label.text = Game.fa_num_grouped(v))
+	_add_hit(Vector2(262, 96), Vector2(792, 54),
+		func(): Transition.change_scene("res://scenes/ShopScene.tscn"))
 
 	# ---- scrollable body
-	var sc := ScrollContainer.new()
-	sc.position = Vector2(60, 200)
-	sc.size = Vector2(960, 1600)
-	sc.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
-	add_child(sc)
+	scroll = ScrollContainer.new()
+	scroll.position = Vector2(48, 196)
+	scroll.size = Vector2(984, UI.SCREEN.y - 196 - 236)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.follow_focus = true
+	add_child(scroll)
 
 	body = VBoxContainer.new()
-	body.custom_minimum_size = Vector2(960, 0)
-	body.add_theme_constant_override("separation", 22)
-	sc.add_child(body)
+	body.custom_minimum_size = Vector2(984, 0)
+	body.add_theme_constant_override("separation", 24)
+	scroll.add_child(body)
+
+	# ---- bottom nav
+	add_child(UI.vignette(0.36))
+	var nav := UI.bottom_nav(_nav_items(), nav_index, _on_nav)
+	nav.position = Vector2(0, UI.SCREEN.y - 214)
+	add_child(nav)
 
 
-func build_body() -> void:
-	pass  # overridden
+func _nav_items() -> Array:
+	return [
+		{"icon": "res://assets/icons/home.png", "label": "خانه"},
+		{"icon": "res://assets/icons/trophy.png", "label": "پروفایل"},
+		{"icon": "res://assets/icons/book.png", "label": "کتابخانه"},
+		{"icon": "res://assets/icons/quests.png", "label": "ماموریت‌ها"},
+		{"icon": "res://assets/icons/settings.png", "label": "تنظیمات"},
+	]
 
 
-## staggered entrance for whatever build_body() produced
-func animate_cards() -> void:
+func _on_nav(i: int) -> void:
+	var scenes := [
+		"res://scenes/HomeScene.tscn", "res://scenes/ProfileScene.tscn",
+		"res://scenes/LibraryScene.tscn", "res://scenes/QuestsScene.tscn",
+		"res://scenes/SettingsScene.tscn",
+	]
+	if i >= 0 and i < scenes.size():
+		Transition.change_scene(scenes[i])
+
+
+func _add_hit(size: Vector2, pos: Vector2, cb: Callable) -> Control:
+	var hit := Control.new()
+	hit.position = pos
+	hit.size = size
+	hit.mouse_filter = Control.MOUSE_FILTER_STOP
+	hit.gui_input.connect(func(e: InputEvent) -> void:
+		if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
+			Audio.play("tap")
+			cb.call())
+	add_child(hit)
+	return hit
+
+
+# ------------------------------------------------------------------- helpers
+func card(height: float = 170.0, radius: int = 30, base: Color = UI.CREAM,
+		wooden: bool = false) -> Control:
+	var c := UI.card(Vector2(984, height), radius, base, wooden)
+	body.add_child(c)
+	return c
+
+
+func section(text: String) -> Control:
+	var h := UI.section_header(text, 984)
+	body.add_child(h)
+	return h
+
+
+func spacer(h: float = 8.0) -> void:
+	var s := Control.new()
+	s.custom_minimum_size = Vector2(0, h)
+	body.add_child(s)
+
+
+func toast(msg: String) -> void:
+	var t := UI.make_toast(msg)
+	add_child(t)
+	t.position = Vector2(UI.SCREEN.x * 0.5 - t.size.x * 0.5, UI.SCREEN.y * 0.52)
+
+
+func rebuild() -> void:
+	for ch in body.get_children():
+		ch.queue_free()
 	await get_tree().process_frame
-	for i in body.get_child_count():
-		var c := body.get_child(i) as Control
-		if c == null:
+	build_body()
+	_stagger_cards()
+
+
+## ورود پله‌ای کارت‌ها (حس زنده بودن صفحه)
+func _stagger_cards() -> void:
+	await get_tree().process_frame
+	var i := 0
+	for c in body.get_children():
+		var ctrl := c as Control
+		if ctrl == null:
 			continue
-		var target := c.position
-		c.position = target + Vector2(70, 0)
-		c.modulate.a = 0.0
-		var tw := c.create_tween().set_parallel()
-		tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		tw.tween_property(c, "position", target, 0.45).set_delay(0.06 * i)
-		tw.tween_property(c, "modulate:a", 1.0, 0.3).set_delay(0.06 * i)
-
-
-func card(height: float = 150.0) -> PanelContainer:
-	var p := PanelContainer.new()
-	p.add_theme_stylebox_override("panel", UI.cream_panel(24))
-	p.custom_minimum_size = Vector2(940, height)
-	return p
+		var target := ctrl.position
+		ctrl.position = target + Vector2(0, 46)
+		ctrl.modulate.a = 0.0
+		var tw := ctrl.create_tween().set_parallel()
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(ctrl, "position", target, 0.42).set_delay(0.045 * float(i))
+		tw.tween_property(ctrl, "modulate:a", 1.0, 0.30).set_delay(0.045 * float(i))
+		i += 1
 
 
 func _notification(what: int) -> void:
