@@ -189,6 +189,17 @@ func _space(src: PackedFloat32Array, amount: float = 0.22) -> PackedFloat32Array
 
 func _to_wav(samples: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 	var n := samples.size()
+	if not loop:
+		# One-shots are peak-normalised: the music bed sits ~7 dB lower, so a
+		# tap has to keep its transient to stay audible on a phone speaker.
+		var peak := 0.0001
+		for i in n:
+			var a: float = absf(samples[i])
+			if a > peak:
+				peak = a
+		var gain: float = clampf(0.72 / peak, 0.0, 8.0)
+		for i in n:
+			samples[i] = samples[i] * gain
 	var data := PackedByteArray()
 	data.resize(n * 2)
 	for i in n:
