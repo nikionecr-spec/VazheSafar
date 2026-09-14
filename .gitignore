@@ -1,0 +1,27 @@
+# ---- toolchains & SDKs (downloaded by CI, never committed) ----
+tools/
+android-sdk/
+tmpwork/
+uploads/
+
+# ---- build outputs (produced by GitHub Actions, attached to Releases) ----
+build/
+*.apk
+*.aab
+*.idsig
+
+# ---- signing material: NEVER commit ----
+*.keystore
+*.jks
+*.p12
+key.properties
+
+# ---- raw art sources (large intermediate renders) ----
+art/raw/
+
+# ---- misc ----
+.DS_Store
+Thumbs.db
+*.log
+__pycache__/
+*.pyc

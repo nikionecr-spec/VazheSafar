@@ -1,0 +1,195 @@
+name: Build Android APK
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - '**.md'
+      - 'shots/**'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      release:
+        description: 'Publish a GitHub Release with the APK'
+        type: boolean
+        default: false
+      version:
+        description: 'Version name (e.g. 1.0.1)'
+        type: string
+        default: ''
+
+env:
+  GODOT_VERSION: 4.3
+  PROJECT_DIR: game
+  APK_NAME: VazheSafar
+
+jobs:
+  build:
+    name: Build & sign APK
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+        with:
+          packages: 'platform-tools platforms;android-34 build-tools;34.0.0'
+
+      - name: Cache Godot
+        id: cache-godot
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/godot
+            ~/.local/share/godot/export_templates
+          key: godot-${{ env.GODOT_VERSION }}-linux
+
+      - name: Download Godot ${{ env.GODOT_VERSION }} + export templates
+        if: steps.cache-godot.outputs.cache-hit != 'true'
+        run: |
+          set -e
+          mkdir -p ~/godot
+          BASE="https://github.com/godotengine/godot/releases/download/${GODOT_VERSION}-stable"
+          curl -sL -o /tmp/godot.zip \
+            "$BASE/Godot_v${GODOT_VERSION}-stable_linux.x86_64.zip"
+          unzip -qo /tmp/godot.zip -d ~/godot
+          chmod +x ~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64
+          curl -sL -o /tmp/templates.tpz \
+            "$BASE/Godot_v${GODOT_VERSION}-stable_export_templates.tpz"
+          mkdir -p ~/.local/share/godot/export_templates
+          unzip -qo /tmp/templates.tpz -d /tmp/tpl
+          mv /tmp/tpl/templates \
+            ~/.local/share/godot/export_templates/${GODOT_VERSION}.stable
+
+      - name: Configure Godot editor settings (SDK paths)
+        run: |
+          mkdir -p ~/.config/godot
+          cat > ~/.config/godot/editor_settings-4.3.tres <<EOF
+          [gd_resource type="EditorSettings" format=3]
+
+          [resource]
+          export/android/android_sdk_path = "${ANDROID_SDK_ROOT}"
+          export/android/java_sdk_path = "${JAVA_HOME}"
+          EOF
+
+      - name: Import project assets
+        run: |
+          ~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 \
+            --headless --path "$PROJECT_DIR" --import
+
+      - name: Run automated tests
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq xvfb libxkbcommon0 libasound2t64 || \
+            sudo apt-get install -y -qq xvfb libxkbcommon0 libasound2
+          xvfb-run -a -s "-screen 0 1080x1920x24" \
+            ~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 \
+            --path "$PROJECT_DIR" --resolution 1080x1920 \
+            --script devtools/PlayTest.gd 2>&1 | tee /tmp/test.log
+          grep -q "ALL TESTS PASSED" /tmp/test.log || {
+            echo "::error::Automated gameplay tests failed"
+            grep -E "FAIL|FAILURES" /tmp/test.log
+            exit 1
+          }
+          echo "::notice::All gameplay tests passed"
+
+      - name: Apply version number
+        if: inputs.version != ''
+        run: |
+          cd "$PROJECT_DIR"
+          sed -i "s|^version/name=.*|version/name=\"${{ inputs.version }}\"|" \
+            export_presets.cfg
+          CODE=$(( ${{ github.run_number }} + 1 ))
+          sed -i "s|^version/code=.*|version/code=$CODE|" export_presets.cfg
+          grep -E "^version/" export_presets.cfg
+
+      - name: Export unsigned release APK
+        run: |
+          mkdir -p build
+          # Godot signs with its own keytool call; we sign manually afterwards
+          sed -i 's|^package/signed=.*|package/signed=false|' \
+            "$PROJECT_DIR/export_presets.cfg"
+          xvfb-run -a ~/godot/Godot_v${GODOT_VERSION}-stable_linux.x86_64 \
+            --headless --path "$PROJECT_DIR" \
+            --export-release "Android" "$GITHUB_WORKSPACE/build/unsigned.apk" \
+            2>&1 | tail -20
+          test -f build/unsigned.apk || { echo "::error::export produced no APK"; exit 1; }
+          ls -lh build/unsigned.apk
+
+      - name: Sign APK
+        env:
+          KEYSTORE_B64: ${{ secrets.KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.KEY_PASSWORD }}
+        run: |
+          set -e
+          BT="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          if [ -z "$KEYSTORE_B64" ]; then
+            echo "::warning::No signing secrets set - generating a throwaway debug key."
+            keytool -genkeypair -v -keystore /tmp/ks.jks -alias ci \
+              -keyalg RSA -keysize 2048 -validity 10000 \
+              -storepass ci_temp_pass -keypass ci_temp_pass \
+              -dname "CN=VazheSafar CI, O=VazheSafar, C=IR"
+            KEYSTORE_PASS=ci_temp_pass; KEY_PASS=ci_temp_pass; KEY_ALIAS=ci
+          else
+            echo "$KEYSTORE_B64" | base64 -d > /tmp/ks.jks
+          fi
+          "$BT/zipalign" -p -f 4 build/unsigned.apk build/aligned.apk
+          "$BT/apksigner" sign \
+            --ks /tmp/ks.jks --ks-pass "pass:$KEYSTORE_PASS" \
+            --key-pass "pass:$KEY_PASS" --ks-key-alias "$KEY_ALIAS" \
+            --v1-signing-enabled true --v2-signing-enabled true \
+            --v3-signing-enabled true \
+            --out "build/${APK_NAME}.apk" build/aligned.apk
+          "$BT/apksigner" verify --verbose "build/${APK_NAME}.apk"
+          rm -f /tmp/ks.jks build/unsigned.apk build/aligned.apk build/*.idsig
+          ls -lh build/
+
+      - name: Report APK info
+        run: |
+          BT="$ANDROID_SDK_ROOT/build-tools/34.0.0"
+          echo "### 📦 APK built successfully" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          "$BT/aapt2" dump badging "build/${APK_NAME}.apk" \
+            | grep -E "^package|sdkVersion|targetSdkVersion|application-label:" \
+            >> $GITHUB_STEP_SUMMARY
+          echo "size: $(du -h build/${APK_NAME}.apk | cut -f1)" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.APK_NAME }}-apk
+          path: build/${{ env.APK_NAME }}.apk
+          retention-days: 90
+          if-no-files-found: error
+
+      - name: Publish GitHub Release
+        if: inputs.release == true
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ inputs.version != '' && inputs.version || format('0.0.{0}', github.run_number) }}
+          name: واژه‌سفر v${{ inputs.version != '' && inputs.version || format('0.0.{0}', github.run_number) }}
+          body: |
+            ## 🎮 واژه‌سفر — بازی واژه‌سازی فارسی
+
+            فایل APK را دانلود و روی گوشی اندروید نصب کنید.
+
+            - **۱۰۰ مرحله** با واژه‌های واقعی فارسی
+            - اندروید ۵٫۰ به بالا (arm64 + arm32)
+            - بدون نیاز به اینترنت
+
+            ساخته‌شده با Godot 4.3 · امضای v1+v2+v3
+          files: build/${{ env.APK_NAME }}.apk
+          draft: false
