@@ -3,6 +3,7 @@ extends Control
 
 const UI := preload("res://scripts/UIKit.gd")
 const PathScript := preload("res://scripts/PathLine.gd")
+const IconBtn := preload("res://scripts/IconButton.gd")
 const PAGE := 10
 
 var page := 0
@@ -60,11 +61,12 @@ func _build_chrome() -> void:
 	content.add_child(nodes_layer)
 
 	# ---- fixed header on top of the scroll area
-	var back := UI.icon_button("res://assets/icons/btn_back.png", 100)
-	back.position = Vector2(36, 56)
+	var back := IconBtn.new()
+	back.icon_path = "res://assets/icons/btn_back.png"
+	back.icon_size = 106.0
+	back.position = Vector2(32, 52)
 	back.pressed.connect(func():
-		Audio.play("tap")
-		get_tree().change_scene_to_file("res://scenes/HomeScene.tscn"))
+		Transition.change_scene("res://scenes/HomeScene.tscn"))
 	add_child(back)
 
 	var plaque := PanelContainer.new()
@@ -148,11 +150,12 @@ func _build_chrome() -> void:
 	add_child(bubble)
 
 	var reward_btn := Control.new()
-	reward_btn.position = Vector2(880, 1700)
-	var rb := UI.icon_button("res://assets/icons/star_gold.png", 120)
+	reward_btn.position = Vector2(878, 1694)
+	var rb := IconBtn.new()
+	rb.icon_path = "res://assets/icons/trophy.png"
+	rb.icon_size = 126.0
 	rb.pressed.connect(func():
-		Audio.play("tap")
-		get_tree().change_scene_to_file("res://scenes/QuestsScene.tscn"))
+		Transition.change_scene("res://scenes/QuestsScene.tscn"))
 	reward_btn.add_child(rb)
 	var cap := PanelContainer.new()
 	var cs := StyleBoxFlat.new()
@@ -207,7 +210,14 @@ func _build_nodes() -> void:
 		var x := area.x * 0.5 + sin(t * PI * 2.8) * area.x * 0.25
 		var y := area.y - margin - step * float(i)
 		points.append(Vector2(x, y))
-		nodes_layer.add_child(_make_node(lvl, Vector2(x, y)))
+		var nd := _make_node(lvl, Vector2(x, y))
+		nodes_layer.add_child(nd)
+		nd.scale = Vector2(0.2, 0.2)
+		nd.modulate.a = 0.0
+		var ntw := nd.create_tween().set_parallel()
+		ntw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		ntw.tween_property(nd, "scale", Vector2.ONE, 0.5).set_delay(0.05 * i)
+		ntw.tween_property(nd, "modulate:a", 1.0, 0.32).set_delay(0.05 * i)
 
 	path_layer.set_meta("points", points)
 	path_layer.queue_redraw()
@@ -292,17 +302,37 @@ func _make_node(lvl: int, pos: Vector2) -> Control:
 		UI.idle_bob(chest, 6.0, 1.8)
 
 	if is_current:
-		var tw := holder.create_tween().set_loops()
-		tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		tw.tween_property(holder, "scale", Vector2(1.08, 1.08), 0.7)
-		tw.tween_property(holder, "scale", Vector2.ONE, 0.7)
+		var halo := Control.new()
+		halo.set_script(preload("res://scripts/Halo.gd"))
+		halo.size = Vector2(box, box)
+		halo.position = Vector2.ZERO
+		halo.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		holder.add_child(halo)
+		holder.move_child(halo, 0)
+		var glow := CPUParticles2D.new()
+		glow.position = Vector2(box * 0.5, box * 0.5)
+		glow.emitting = true
+		glow.amount = 14
+		glow.lifetime = 1.4
+		glow.preprocess = 1.0
+		glow.emission_shape = CPUParticles2D.EMISSION_SHAPE_SPHERE
+		glow.emission_sphere_radius = 52.0
+		glow.direction = Vector2(0, -1)
+		glow.spread = 40.0
+		glow.initial_velocity_min = 18.0
+		glow.initial_velocity_max = 46.0
+		glow.gravity = Vector2(0, -22)
+		glow.scale_amount_min = 2.0
+		glow.scale_amount_max = 5.0
+		glow.color = Color(0.75, 1.0, 0.5, 0.75)
+		holder.add_child(glow)
 
 	btn.disabled = not unlocked
 	if unlocked:
 		btn.pressed.connect(func() -> void:
 			Audio.play("tap")
 			Game.set_meta("goto_level", lvl)
-			get_tree().change_scene_to_file("res://scenes/LevelScene.tscn"))
+			Transition.change_scene("res://scenes/LevelScene.tscn"))
 	return holder
 
 
@@ -331,4 +361,4 @@ func prev_world() -> void:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		get_tree().change_scene_to_file("res://scenes/HomeScene.tscn")
+		Transition.change_scene("res://scenes/HomeScene.tscn")

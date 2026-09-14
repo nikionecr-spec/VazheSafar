@@ -2,6 +2,7 @@ extends Control
 ## Level-complete celebration popup with animated stars and rewards.
 
 const UI := preload("res://scripts/UIKit.gd")
+const JuicyBtn := preload("res://scripts/JuicyButton.gd")
 
 signal next_pressed
 signal map_pressed
@@ -65,11 +66,17 @@ func _build() -> void:
 	bonus_line = UI.label("", 30, Color("#8a6a3c"))
 	vb.add_child(bonus_line)
 
-	var next_btn := UI.green_button("مرحله بعد  ▶", 44)
-	next_btn.custom_minimum_size = Vector2(600, 124)
-	next_btn.pressed.connect(func():
-		Audio.play("tap")
-		next_pressed.emit())
+	var next_btn := JuicyBtn.new()
+	next_btn.text = "مرحله بعد"
+	next_btn.icon_path = "res://assets/icons/btn_play.png"
+	next_btn.base_color = Color("#5cbf2a")
+	next_btn.shadow_color = Color("#357d12")
+	next_btn.font_size = 46
+	next_btn.corner = 38.0
+	next_btn.idle_pulse = true
+	next_btn.shine = true
+	next_btn.custom_minimum_size = Vector2(600, 128)
+	next_btn.pressed.connect(func(): next_pressed.emit())
 	vb.add_child(next_btn)
 
 	var map_btn := Button.new()
@@ -86,6 +93,7 @@ func _build() -> void:
 
 	card.add_child(vb)
 	UI.pop_in(card)
+	_confetti()
 
 
 func setup(level_id: int, stars: int, reward: int, bonus_count: int) -> void:
@@ -122,3 +130,36 @@ func _animate_stars(count: int) -> void:
 					tw.tween_property(s, "scale", Vector2(1.45, 1.45), 0.16)
 					tw.tween_property(s, "scale", Vector2.ONE, 0.24)
 					Audio.play("star", 1.0 + idx * 0.12))
+
+
+func _confetti() -> void:
+	for i in 3:
+		var p := CPUParticles2D.new()
+		p.position = Vector2(140.0 + 400.0 * float(i), 480.0)
+		p.emitting = true
+		p.one_shot = true
+		p.explosiveness = 0.9
+		p.amount = 34
+		p.lifetime = 2.4
+		p.direction = Vector2(0, -1)
+		p.spread = 58.0
+		p.initial_velocity_min = 620.0
+		p.initial_velocity_max = 1150.0
+		p.gravity = Vector2(0, 900)
+		p.angular_velocity_min = -420.0
+		p.angular_velocity_max = 420.0
+		p.scale_amount_min = 5.0
+		p.scale_amount_max = 11.0
+		var g := Gradient.new()
+		g.set_color(0, Color(1.0, 0.85, 0.25))
+		g.set_color(1, Color(0.35, 0.85, 1.0))
+		g.add_point(0.35, Color(1.0, 0.42, 0.52))
+		g.add_point(0.7, Color(0.55, 0.95, 0.45))
+		var gt := GradientTexture1D.new()
+		gt.gradient = g
+		p.color_ramp = g
+		p.z_index = 60
+		add_child(p)
+		get_tree().create_timer(4.0).timeout.connect(func():
+			if is_instance_valid(p):
+				p.queue_free())

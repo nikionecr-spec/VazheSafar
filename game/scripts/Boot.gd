@@ -11,4 +11,4 @@ func _ready() -> void:
 	tw.parallel().tween_property(logo, "modulate:a", 1.0, 0.45)
 	tw.tween_interval(0.5)
 	tw.tween_callback(func():
-		get_tree().change_scene_to_file("res://scenes/HomeScene.tscn"))
+		Transition.change_scene("res://scenes/HomeScene.tscn"))

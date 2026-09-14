@@ -3,6 +3,7 @@ extends Control
 
 const UI := preload("res://scripts/UIKit.gd")
 const WheelScript := preload("res://scripts/LetterWheel.gd")
+const IconBtn := preload("res://scripts/IconButton.gd")
 
 var level_id := 1
 var level_data: Dictionary = {}
@@ -55,8 +56,10 @@ func _build_ui() -> void:
 	add_child(bg)
 
 	# back button
-	var back := UI.icon_button("res://assets/icons/btn_back.png", 100)
-	back.position = Vector2(36, 60)
+	var back := IconBtn.new()
+	back.icon_path = "res://assets/icons/btn_back.png"
+	back.icon_size = 106.0
+	back.position = Vector2(32, 56)
 	back.pressed.connect(_on_back_pressed)
 	add_child(back)
 
@@ -89,20 +92,21 @@ func _build_ui() -> void:
 	add_child(coinp)
 
 	# answer board parchment
-	var parch := PanelContainer.new()
-	var sb := UI.cream_panel(34)
-	sb.content_margin_left = 24
-	sb.content_margin_right = 24
-	sb.content_margin_top = 28
-	sb.content_margin_bottom = 28
-	parch.add_theme_stylebox_override("panel", sb)
-	parch.position = Vector2(60, 230)
-	parch.custom_minimum_size = Vector2(960, 620)
+	var parch := TextureRect.new()
+	parch.texture = load("res://assets/art/board_panel.png")
+	parch.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	parch.stretch_mode = TextureRect.STRETCH_SCALE
+	parch.position = Vector2(60, 228)
+	parch.size = Vector2(960, 620)
+	parch.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(parch)
 
 	board = Control.new()
-	board.custom_minimum_size = Vector2(910, 560)
-	parch.add_child(board)
+	board.position = Vector2(110, 280)
+	board.size = Vector2(860, 516)
+	board.custom_minimum_size = board.size
+	board.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	add_child(board)
 
 	# current-word preview
 	preview = UI.outlined_label("", 64, Color("#fff3d4"), Color("#5b3a1c"), 10)
@@ -146,20 +150,25 @@ func _build_ui() -> void:
 	_wheel_backdrop()
 
 	# shuffle + hint
-	var shuffle := UI.icon_button("res://assets/icons/shuffle.png", 120)
-	shuffle.position = Vector2(50, 1730)
+	var shuffle := IconBtn.new()
+	shuffle.icon_path = "res://assets/icons/shuffle.png"
+	shuffle.caption = "بُر زدن"
+	shuffle.icon_size = 128.0
+	shuffle.position = Vector2(44, 1716)
 	shuffle.pressed.connect(func(): wheel.shuffle_letters())
 	add_child(shuffle)
-	add_child(_caption("بُر زدن", Vector2(52, 1846)))
 
 	var hint_holder := Control.new()
-	hint_holder.position = Vector2(910, 1730)
-	var hint := UI.icon_button("res://assets/icons/hint.png", 120)
+	hint_holder.position = Vector2(898, 1716)
+	var hint := IconBtn.new()
+	hint.icon_path = "res://assets/icons/hint.png"
+	hint.icon_size = 128.0
+	hint.float_phase = 0.6
 	hint.pressed.connect(_on_hint_pressed)
 	hint_holder.add_child(hint)
 	var price := PanelContainer.new()
 	price.add_theme_stylebox_override("panel", UI.gold_pill(20))
-	price.position = Vector2(4, 96)
+	price.position = Vector2(12, 118)
 	var phb := HBoxContainer.new()
 	phb.add_theme_constant_override("separation", 4)
 	phb.alignment = BoxContainer.ALIGNMENT_CENTER
@@ -178,19 +187,12 @@ func _build_ui() -> void:
 
 
 func _wheel_backdrop() -> void:
-	var disc := Panel.new()
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color("#a3713c")
-	sb.set_corner_radius_all(350)
-	sb.border_color = Color("#7a5024")
-	sb.set_border_width_all(14)
-	sb.shadow_color = Color(0, 0, 0, 0.3)
-	sb.shadow_size = 14
-	sb.shadow_offset = Vector2(0, 8)
-	disc.add_theme_stylebox_override("panel", sb)
-	disc.position = wheel.position
-	disc.size = wheel.size
-	disc.custom_minimum_size = wheel.size
+	var disc := TextureRect.new()
+	disc.texture = load("res://assets/art/wheel_base.png")
+	disc.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	disc.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	disc.position = wheel.position - Vector2(24, 24)
+	disc.size = wheel.size + Vector2(48, 48)
 	disc.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(disc)
 	move_child(disc, wheel.get_index())
@@ -326,7 +328,10 @@ func _on_word(word: String) -> void:
 		Audio.play("word_ok")
 		Audio.vibrate(25)
 		wheel.flash(Color("#8fd66a"))
+		wheel.celebrate(wheel.index_of_letters(word))
 		_reveal_word(word)
+		_word_burst(word)
+		_shake_screen(5.0, 0.18)
 		Game.register_word_found(false)
 		_check_complete()
 	elif word.length() >= 3 and Game.dictionary.has(word) and not bonus_found.has(word):
@@ -337,10 +342,14 @@ func _on_word(word: String) -> void:
 		Game.register_word_found(true)
 		Game.add_coins(5)
 		_show_bonus(word)
+		wheel.celebrate(wheel.index_of_letters(word))
+		_fly_coins(wheel.position + wheel.size * 0.5, 6)
 	else:
 		Audio.play("word_bad")
+		Audio.vibrate(35)
 		wheel.flash(Color("#e0665a"))
 		_shake(preview)
+		_shake_screen(7.0, 0.22)
 
 
 func _pulse_word(word: String) -> void:
@@ -414,7 +423,7 @@ func _check_word_auto_complete(word: String) -> void:
 
 func _on_back_pressed() -> void:
 	Audio.play("tap")
-	get_tree().change_scene_to_file("res://scenes/MapScene.tscn")
+	Transition.change_scene("res://scenes/MapScene.tscn")
 
 
 func _check_complete() -> void:
@@ -440,11 +449,11 @@ func _show_win_popup(earned: int) -> void:
 	popup.next_pressed.connect(func() -> void:
 		if level_id < Game.total_levels():
 			Game.set_meta("goto_level", level_id + 1)
-			get_tree().change_scene_to_file("res://scenes/LevelScene.tscn")
+			Transition.change_scene("res://scenes/LevelScene.tscn")
 		else:
-			get_tree().change_scene_to_file("res://scenes/MapScene.tscn"))
+			Transition.change_scene("res://scenes/MapScene.tscn"))
 	popup.map_pressed.connect(func() -> void:
-		get_tree().change_scene_to_file("res://scenes/MapScene.tscn"))
+		Transition.change_scene("res://scenes/MapScene.tscn"))
 
 
 func _toast(msg: String) -> void:
@@ -456,3 +465,80 @@ func _toast(msg: String) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
 		_on_back_pressed()
+
+
+# ==================================================================== FX
+var _shake_amount := 0.0
+var _shake_time := 0.0
+var _base_offset := Vector2.ZERO
+
+
+func _shake_screen(amount: float, time: float) -> void:
+	_shake_amount = maxf(_shake_amount, amount)
+	_shake_time = maxf(_shake_time, time)
+	set_process(true)
+
+
+func _process(delta: float) -> void:
+	if _shake_time > 0.0:
+		_shake_time -= delta
+		var k: float = clampf(_shake_time / 0.2, 0.0, 1.0)
+		position = Vector2(randf_range(-1.0, 1.0), randf_range(-1.0, 1.0)) \
+			* _shake_amount * k
+		if _shake_time <= 0.0:
+			position = Vector2.ZERO
+			_shake_amount = 0.0
+
+
+## green sparkle burst over the revealed word
+func _word_burst(word: String) -> void:
+	var cells: Array = _slots.get(word, [])
+	if cells.is_empty():
+		return
+	var mid: Panel = cells[cells.size() / 2]
+	var p := CPUParticles2D.new()
+	p.position = mid.get_global_rect().get_center()
+	p.emitting = true
+	p.one_shot = true
+	p.explosiveness = 1.0
+	p.amount = 18
+	p.lifetime = 0.75
+	p.spread = 180.0
+	p.initial_velocity_min = 130.0
+	p.initial_velocity_max = 320.0
+	p.gravity = Vector2(0, 480)
+	p.scale_amount_min = 3.0
+	p.scale_amount_max = 7.0
+	p.color = Color(0.68, 0.95, 0.45)
+	add_child(p)
+	get_tree().create_timer(1.4).timeout.connect(func():
+		if is_instance_valid(p):
+			p.queue_free())
+
+
+## coins fly from a point up to the HUD counter
+func _fly_coins(from: Vector2, count: int) -> void:
+	var target := Vector2(880, 108)
+	for i in count:
+		var c := TextureRect.new()
+		c.texture = load("res://assets/icons/coin.png")
+		c.custom_minimum_size = Vector2(52, 52)
+		c.size = c.custom_minimum_size
+		c.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		c.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+		c.position = from + Vector2(randf_range(-60, 60), randf_range(-60, 60))
+		c.pivot_offset = Vector2(26, 26)
+		c.z_index = 40
+		add_child(c)
+		var mid := c.position.lerp(target, 0.45) + Vector2(randf_range(-160, 160), -220)
+		var tw := c.create_tween()
+		tw.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_interval(0.035 * i)
+		tw.tween_property(c, "position", mid, 0.32)
+		tw.set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_IN)
+		tw.tween_property(c, "position", target, 0.38)
+		tw.parallel().tween_property(c, "scale", Vector2(0.5, 0.5), 0.38)
+		tw.tween_callback(func():
+			Audio.play("coin", randf_range(0.94, 1.12))
+			if is_instance_valid(c):
+				c.queue_free())

@@ -95,7 +95,7 @@ func _reset_card() -> Control:
 			return
 		Game.reset_progress()
 		Audio.play("unlock")
-		get_tree().change_scene_to_file("res://scenes/HomeScene.tscn"))
+		Transition.change_scene("res://scenes/HomeScene.tscn"))
 	hb.add_child(btn)
 	var l := UI.label("بازنشانی پیشرفت", 34, UI.TEXT_DARK)
 	l.size_flags_horizontal = Control.SIZE_EXPAND_FILL

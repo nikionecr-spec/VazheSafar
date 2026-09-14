@@ -13,6 +13,7 @@ config/icon="res://assets/icons/app_icon.png"
 
 Game="*res://scripts/Game.gd"
 Audio="*res://scripts/Audio.gd"
+Transition="*res://scripts/Transition.gd"
 
 [display]
 

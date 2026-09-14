@@ -3,6 +3,7 @@ class_name SubScene
 ## Shared base for the simple full-screen menus (shop, quests, library, ...).
 
 const UI := preload("res://scripts/UIKit.gd")
+const IconBtn := preload("res://scripts/IconButton.gd")
 
 @export var screen_title := "صفحه"
 
@@ -13,6 +14,7 @@ var coin_label: Label
 func _ready() -> void:
 	_build_chrome()
 	build_body()
+	animate_cards()
 
 
 func _build_chrome() -> void:
@@ -33,11 +35,12 @@ func _build_chrome() -> void:
 	add_child(veil)
 
 	# ---- top bar
-	var back := UI.icon_button("res://assets/icons/btn_back.png", 96)
-	back.position = Vector2(40, 60)
+	var back := IconBtn.new()
+	back.icon_path = "res://assets/icons/btn_back.png"
+	back.icon_size = 104.0
+	back.position = Vector2(34, 56)
 	back.pressed.connect(func():
-		Audio.play("tap")
-		get_tree().change_scene_to_file("res://scenes/HomeScene.tscn"))
+		Transition.change_scene("res://scenes/HomeScene.tscn"))
 	add_child(back)
 
 	var titlep := PanelContainer.new()
@@ -84,6 +87,22 @@ func build_body() -> void:
 	pass  # overridden
 
 
+## staggered entrance for whatever build_body() produced
+func animate_cards() -> void:
+	await get_tree().process_frame
+	for i in body.get_child_count():
+		var c := body.get_child(i) as Control
+		if c == null:
+			continue
+		var target := c.position
+		c.position = target + Vector2(70, 0)
+		c.modulate.a = 0.0
+		var tw := c.create_tween().set_parallel()
+		tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+		tw.tween_property(c, "position", target, 0.45).set_delay(0.06 * i)
+		tw.tween_property(c, "modulate:a", 1.0, 0.3).set_delay(0.06 * i)
+
+
 func card(height: float = 150.0) -> PanelContainer:
 	var p := PanelContainer.new()
 	p.add_theme_stylebox_override("panel", UI.cream_panel(24))
@@ -93,4 +112,4 @@ func card(height: float = 150.0) -> PanelContainer:
 
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_GO_BACK_REQUEST:
-		get_tree().change_scene_to_file("res://scenes/HomeScene.tscn")
+		Transition.change_scene("res://scenes/HomeScene.tscn")

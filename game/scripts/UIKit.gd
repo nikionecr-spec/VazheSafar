@@ -102,8 +102,55 @@ static func green_button(text: String, font_size: int = 40) -> Button:
 	b.add_theme_stylebox_override("normal", green_button_style(false))
 	b.add_theme_stylebox_override("hover", green_button_style(false))
 	b.add_theme_stylebox_override("pressed", green_button_style(true))
+	var ds := green_button_style(true)
+	ds.bg_color = Color("#c9bda6")
+	ds.border_color = Color("#a89a80")
+	ds.shadow_size = 4
+	ds.shadow_offset = Vector2(0, 3)
+	b.add_theme_stylebox_override("disabled", ds)
+	b.add_theme_color_override("font_disabled_color", Color("#fdf6e3"))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	juice(b)
+	gloss(b)
 	return b
+
+
+## Adds press-squash / elastic-release / sound / haptics to any BaseButton.
+static func juice(b: BaseButton, squash: float = 0.93) -> void:
+	b.set_meta("juiced", true)
+	b.button_down.connect(func() -> void:
+		b.pivot_offset = b.size * 0.5
+		var tw := b.create_tween()
+		tw.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+		tw.tween_property(b, "scale", Vector2(squash + 0.03, squash - 0.02), 0.07)
+		Audio.play("btn_down")
+		Audio.vibrate(12))
+	b.button_up.connect(func() -> void:
+		b.pivot_offset = b.size * 0.5
+		var tw := b.create_tween()
+		tw.set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+		tw.tween_property(b, "scale", Vector2.ONE, 0.45)
+		Audio.play("btn_up"))
+
+
+## Glossy top highlight overlay so flat buttons read as 3D candy.
+static func gloss(b: Control, alpha: float = 0.22) -> void:
+	var g := Panel.new()
+	g.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	g.set_anchors_preset(Control.PRESET_TOP_WIDE)
+	g.anchor_bottom = 0.48
+	g.offset_left = 6
+	g.offset_right = -6
+	g.offset_top = 5
+	g.offset_bottom = 0
+	var sb := StyleBoxFlat.new()
+	sb.bg_color = Color(1, 1, 1, alpha)
+	sb.corner_radius_top_left = 22
+	sb.corner_radius_top_right = 22
+	sb.corner_radius_bottom_left = 14
+	sb.corner_radius_bottom_right = 14
+	g.add_theme_stylebox_override("panel", sb)
+	b.add_child(g)
 
 
 static func icon_button(tex_path: String, box: float = 92.0) -> TextureButton:
