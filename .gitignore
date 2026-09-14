@@ -25,3 +25,6 @@ Thumbs.db
 *.log
 __pycache__/
 *.pyc
+
+# ---- audio previews (listening samples, not shipped in the game) ----
+audio_preview/
