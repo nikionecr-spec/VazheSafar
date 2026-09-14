@@ -4,6 +4,8 @@ extends SubScene
 
 func _init() -> void:
 	screen_title = "کتابخانه"
+	section = "library"
+	nav_key = "library"
 
 
 func build_body() -> void:

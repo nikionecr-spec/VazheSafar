@@ -12,6 +12,8 @@ const THEMES := [
 
 func _init() -> void:
 	screen_title = "تم‌ها"
+	section = "themes"
+	nav_key = "themes"
 
 
 func build_body() -> void:

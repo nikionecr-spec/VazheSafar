@@ -1,7 +1,8 @@
 extends Control
 class_name JuicyButton
-## A game-feel button: 3D extruded body, squash on press, bounce on release,
-## idle breathing, shine sweep and particle burst. Built for touch.
+## A premium soft-3D button: baked gradient face, real extrusion that sinks on
+## press, spring-back release, optional idle breathing and a travelling shine.
+## Touch feedback is deliberately smooth rather than bouncy-cartoon.
 
 signal pressed
 
@@ -11,77 +12,63 @@ signal pressed
 @export var shadow_color := Color("#3f8c1f")
 @export var font_size := 44
 @export var corner := 34.0
-@export var depth := 10.0          ## 3D extrusion height
+@export var depth := 10.0          ## extrusion height in pixels
 @export var idle_pulse := false
 @export var shine := false
+@export var glow := false          ## soft halo behind the button
 
 var _pressed := false
-var _hover := 0.0
 var _body: Control
-var _shadow: Panel
-var _face: Panel
+var _shadow: TextureRect
+var _face: TextureRect
 var _label: Label
 var _icon: TextureRect
-var _shine_x := -1.5
+var _glow: TextureRect
 var _disabled := false
+var _base_icon_box := 0.0
 
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build()
+	resized.connect(_relayout)
 	if idle_pulse:
 		_start_idle()
 	if shine:
 		_start_shine()
-	resized.connect(_relayout)
 
 
 func _build() -> void:
-	# drop shadow (the extruded side)
-	_shadow = Panel.new()
+	if glow:
+		_glow = TextureRect.new()
+		_glow.texture = UIKit.glow_tex(int(maxf(120.0, size.x * 0.55)), Color(base_color.r, base_color.g, base_color.b, 0.5), 2.0)
+		_glow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+		_glow.stretch_mode = TextureRect.STRETCH_SCALE
+		_glow.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		add_child(_glow)
+
+	# extruded side
+	_shadow = TextureRect.new()
 	_shadow.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var ss := StyleBoxFlat.new()
-	ss.bg_color = shadow_color
-	ss.set_corner_radius_all(int(corner))
-	_shadow.add_theme_stylebox_override("panel", ss)
+	_shadow.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_shadow.stretch_mode = TextureRect.STRETCH_SCALE
 	add_child(_shadow)
 
-	# body holder (scaled for squash)
 	_body = Control.new()
 	_body.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	add_child(_body)
 
-	_face = Panel.new()
+	_face = TextureRect.new()
 	_face.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_face.clip_contents = true
-	var fs := StyleBoxFlat.new()
-	fs.bg_color = base_color
-	fs.set_corner_radius_all(int(corner))
-	fs.border_color = base_color.lightened(0.28)
-	fs.border_width_top = 4
-	fs.border_width_left = 3
-	fs.border_width_right = 3
-	fs.border_width_bottom = 0
-	_face.add_theme_stylebox_override("panel", fs)
+	_face.clip_contents = true          # keeps the shine sweep inside the shape
+	_face.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_face.stretch_mode = TextureRect.STRETCH_SCALE
 	_body.add_child(_face)
-
-	# glossy top highlight
-	var gloss := Panel.new()
-	gloss.name = "Gloss"
-	gloss.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	var gs := StyleBoxFlat.new()
-	gs.bg_color = Color(1, 1, 1, 0.22)
-	gs.corner_radius_top_left = int(corner * 0.8)
-	gs.corner_radius_top_right = int(corner * 0.8)
-	gs.corner_radius_bottom_left = int(corner * 0.5)
-	gs.corner_radius_bottom_right = int(corner * 0.5)
-	gloss.add_theme_stylebox_override("panel", gs)
-	_face.add_child(gloss)
 
 	var content := HBoxContainer.new()
 	content.name = "Content"
 	content.alignment = BoxContainer.ALIGNMENT_CENTER
-	content.add_theme_constant_override("separation", 14)
+	content.add_theme_constant_override("separation", 16)
 	content.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_face.add_child(content)
 
@@ -96,46 +83,54 @@ func _build() -> void:
 	if text != "":
 		_label = Label.new()
 		_label.text = text
-		_label.add_theme_font_override("font",
-			load("res://assets/fonts/Vazirmatn-Black.ttf"))
+		_label.add_theme_font_override("font", load("res://assets/fonts/Vazirmatn-Black.ttf"))
 		_label.add_theme_font_size_override("font_size", font_size)
 		_label.add_theme_color_override("font_color", Color.WHITE)
-		_label.add_theme_constant_override("outline_size", 7)
-		_label.add_theme_color_override("font_outline_color", shadow_color.darkened(0.2))
+		_label.add_theme_constant_override("outline_size", 6)
+		_label.add_theme_color_override("font_outline_color",
+			shadow_color.darkened(0.35))
 		_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
 		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		content.add_child(_label)
-
 	_relayout()
 
 
 func _relayout() -> void:
-	if _shadow == null:
+	if _face == null:
 		return
 	var s := size
+	if s.x < 4.0 or s.y < 4.0:
+		return
+	var r := int(corner)
+	# baked gradient faces (cached by UIKit, so this is cheap after frame 1)
+	_face.texture = UIKit.gradient_tex(int(s.x), int(s.y), r,
+		base_color.lightened(0.22), base_color.darkened(0.16),
+		Color(1, 1, 1, 0.5), Color(0, 0, 0, 0.22), Color(0, 0, 0, 0), 0, 0.20)
+	_face.position = Vector2.ZERO
+	_face.size = s
+	_shadow.texture = UIKit.gradient_tex(int(s.x), int(s.y), r,
+		shadow_color.lightened(0.05), shadow_color.darkened(0.22),
+		Color(1, 1, 1, 0.10), Color(0, 0, 0, 0.25), Color(0, 0, 0, 0), 0, 0.0)
 	_shadow.position = Vector2(0, depth)
 	_shadow.size = s
+	if _glow:
+		_glow.size = Vector2(s.x * 1.18, s.y * 2.4)
+		_glow.position = Vector2(-s.x * 0.09, -s.y * 0.7)
 	_body.position = Vector2.ZERO
 	_body.size = s
 	_body.pivot_offset = s * 0.5
-	_face.position = Vector2.ZERO
-	_face.size = s
-	var gloss: Panel = _face.get_node_or_null("Gloss")
-	if gloss:
-		gloss.position = Vector2(6, 4)
-		gloss.size = Vector2(s.x - 12, s.y * 0.42)
 	var content: HBoxContainer = _face.get_node_or_null("Content")
 	if content:
 		content.position = Vector2.ZERO
 		content.size = s
 	if _icon:
-		var box: float = clampf(s.y * 0.62, 28.0, 92.0)
-		_icon.custom_minimum_size = Vector2(box, box)
+		_base_icon_box = clampf(s.y * 0.58, 30.0, 104.0)
+		_icon.custom_minimum_size = Vector2(_base_icon_box, _base_icon_box)
 
 
 func set_disabled(v: bool) -> void:
 	_disabled = v
-	modulate = Color(0.62, 0.62, 0.62, 1.0) if v else Color.WHITE
+	modulate = Color(0.68, 0.68, 0.70, 0.9) if v else Color.WHITE
 
 
 func set_text(t: String) -> void:
@@ -154,7 +149,7 @@ func _gui_input(event: InputEvent) -> void:
 		else:
 			if _pressed:
 				_release()
-				if Rect2(Vector2.ZERO, size).has_point(event.position):
+				if Rect2(Vector2.ZERO, Vector2(size.x, size.y + depth)).has_point(event.position):
 					pressed.emit()
 		accept_event()
 
@@ -165,9 +160,12 @@ func _press() -> void:
 	Audio.vibrate(14)
 	var tw := create_tween().set_parallel()
 	tw.set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
-	# squash down into the shadow
-	tw.tween_property(_body, "position:y", depth * 0.85, 0.07)
-	tw.tween_property(_body, "scale", Vector2(1.04, 0.93), 0.07)
+	# sink into the extrusion, squash just enough to feel soft
+	tw.tween_property(_body, "position:y", depth * 0.72, 0.08)
+	tw.tween_property(_body, "scale", Vector2(1.025, 0.955), 0.08)
+	tw.tween_property(_shadow, "size:y", size.y - depth * 0.72, 0.08)
+	if _glow:
+		tw.tween_property(_glow, "modulate:a", 0.45, 0.08)
 
 
 func _release() -> void:
@@ -175,28 +173,31 @@ func _release() -> void:
 	Audio.play("btn_up")
 	var tw := create_tween().set_parallel()
 	tw.set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-	tw.tween_property(_body, "position:y", 0.0, 0.32)
-	tw.tween_property(_body, "scale", Vector2.ONE, 0.36)
+	tw.tween_property(_body, "position:y", 0.0, 0.34)
+	tw.tween_property(_body, "scale", Vector2.ONE, 0.34)
+	tw.tween_property(_shadow, "size:y", size.y, 0.34)
+	if _glow:
+		tw.tween_property(_glow, "modulate:a", 1.0, 0.34)
 	_burst()
 
 
-## small sparkle burst on release
 func _burst() -> void:
 	var p := CPUParticles2D.new()
-	p.position = size * 0.5
+	p.position = Vector2(size.x * 0.5, size.y * 0.35)
 	p.emitting = true
 	p.one_shot = true
 	p.explosiveness = 1.0
-	p.amount = 12
-	p.lifetime = 0.5
+	p.amount = 10
+	p.lifetime = 0.55
 	p.direction = Vector2(0, -1)
-	p.spread = 180.0
-	p.initial_velocity_min = 90.0
-	p.initial_velocity_max = 210.0
-	p.gravity = Vector2(0, 420)
-	p.scale_amount_min = 3.0
-	p.scale_amount_max = 6.0
-	p.color = base_color.lightened(0.55)
+	p.spread = 150.0
+	p.initial_velocity_min = 60.0
+	p.initial_velocity_max = 160.0
+	p.gravity = Vector2(0, 300)
+	p.scale_amount_min = 2.0
+	p.scale_amount_max = 4.5
+	p.color = base_color.lightened(0.5)
+	p.color.a = 0.75
 	add_child(p)
 	get_tree().create_timer(1.0).timeout.connect(func():
 		if is_instance_valid(p):
@@ -205,24 +206,29 @@ func _burst() -> void:
 
 func _start_idle() -> void:
 	await get_tree().process_frame
+	if _body == null:
+		return
 	var tw := create_tween().set_loops()
 	tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-	tw.tween_property(_body, "scale", Vector2(1.035, 1.035), 0.85)
-	tw.tween_property(_body, "scale", Vector2.ONE, 0.85)
+	tw.tween_property(_body, "scale", Vector2(1.018, 1.018), 1.1)
+	tw.tween_property(_body, "scale", Vector2.ONE, 1.1)
 
 
 func _start_shine() -> void:
-	var sh := ColorRect.new()
-	sh.color = Color(1, 1, 1, 0.30)
-	sh.rotation = 0.35
+	var sh := TextureRect.new()
+	sh.texture = UIKit.gradient_tex(70, 260, 34, Color(1, 1, 1, 0.30), Color(1, 1, 1, 0.0),
+		Color(1, 1, 1, 0.0), Color(1, 1, 1, 0.0), Color(0, 0, 0, 0), 0, 0.0)
+	sh.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	sh.stretch_mode = TextureRect.STRETCH_SCALE
 	sh.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	sh.modulate.a = 0.9
 	_face.add_child(sh)
 	while is_instance_valid(sh):
-		await get_tree().create_timer(2.6).timeout
-		if not is_instance_valid(sh):
+		await get_tree().create_timer(3.2).timeout
+		if not is_instance_valid(sh) or _face == null:
 			return
-		sh.size = Vector2(size.x * 0.22, size.y * 2.4)
-		sh.position = Vector2(-size.x * 0.35, -size.y * 0.7)
+		sh.size = Vector2(size.x * 0.30, size.y * 1.4)
+		sh.position = Vector2(-size.x * 0.35, -size.y * 0.2)
 		var tw := create_tween()
 		tw.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
-		tw.tween_property(sh, "position:x", size.x * 1.15, 0.65)
+		tw.tween_property(sh, "position:x", size.x * 1.15, 0.75)
