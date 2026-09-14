@@ -14,7 +14,7 @@ extends Node
 ##
 ## Everything here is synthesised at runtime (0 bytes of audio assets).
 
-const SR := 32000.0
+const SR := 24000.0
 
 # ------------------------------------------------------------------ players
 var _sfx_players: Array[AudioStreamPlayer] = []
@@ -187,12 +187,37 @@ func _space(src: PackedFloat32Array, amount: float = 0.22) -> PackedFloat32Array
 	return out
 
 
+## فضای کوتاه و گرم (شبیه اتاق چوبی) — چند بازتاب محو
+func _room(x: PackedFloat32Array, wet: float = 0.22) -> PackedFloat32Array:
+	var taps := [[0.019, 0.55], [0.031, 0.40], [0.047, 0.28], [0.071, 0.18]]
+	var out := x.duplicate()
+	for tap in taps:
+		var off := int(SR * float(tap[0]))
+		var g: float = float(tap[1]) * wet
+		for i in range(0, x.size()):
+			var j := i + off
+			if j >= out.size():
+				break
+			out[j] += x[i] * g
+	return out
+
+
+func _mix_at(a: PackedFloat32Array, b: PackedFloat32Array, offset: int,
+		gain: float = 1.0) -> PackedFloat32Array:
+	var need := offset + b.size()
+	if a.size() < need:
+		a.resize(need)
+	for i in b.size():
+		a[offset + i] += b[i] * gain
+	return a
+
+
 func _to_wav(samples: PackedFloat32Array, loop := false) -> AudioStreamWAV:
 	var n := samples.size()
 	var data := PackedByteArray()
 	data.resize(n * 2)
 	for i in n:
-		var v: int = clampi(int(samples[i] * 32767.0), -32768, 32767)
+		var v: int = clampi(int(clampf(samples[i], -1.0, 1.0) * 32767.0), -32768, 32767)
 		var u: int = v if v >= 0 else v + 65536
 		data[i * 2] = u & 0xFF
 		data[i * 2 + 1] = (u >> 8) & 0xFF
@@ -326,18 +351,21 @@ func _build_sfx() -> void:
 	_cache["shuffle"] = _to_wav(sw)
 
 
+# ==================================================================== SFX play
 func play(sound: String, pitch: float = 1.0) -> void:
 	if not bool(Game.settings.get("sfx", true)):
 		return
 	var stream: AudioStreamWAV = _cache.get(sound)
 	if stream == null:
 		return
-	var p := _sfx_players[_sfx_idx]
-	_sfx_idx = (_sfx_idx + 1) % _sfx_players.size()
+	var p := _sfx[_sfx_idx]
+	_sfx_idx = (_sfx_idx + 1) % _sfx.size()
 	p.stream = stream
 	p.pitch_scale = pitch
 	p.volume_db = _sfx_db()
 	p.play()
+	if sound == "word_ok" or sound == "word_bonus" or sound == "win" or sound == "star":
+		duck_for(0.45, 1.6)
 
 
 func play_letter(index: int) -> void:

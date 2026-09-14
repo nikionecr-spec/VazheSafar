@@ -10,6 +10,7 @@ extends Control
 ##   * rewards are always *visible*: chest countdown, daily badge, XP bar
 
 const UI := preload("res://scripts/UIKit.gd")
+const ArtL := preload("res://scripts/Art.gd")
 const JuicyBtn := preload("res://scripts/JuicyButton.gd")
 const IconBtn := preload("res://scripts/IconButton.gd")
 
@@ -44,7 +45,7 @@ func _ready() -> void:
 	_entrance_anim()
 
 
-# ================================================================== build
+# ==================================================================== build
 func _build() -> void:
 	_hero()
 	_add_ambient_particles()
@@ -92,6 +93,7 @@ func _add_sun_rays() -> void:
 	rays.modulate.a = 0.55
 	add_child(rays)
 
+	add_child(UI.ambient_motes(UI.SCREEN, 34))
 
 func _add_ambient_particles() -> void:
 	var p := CPUParticles2D.new()

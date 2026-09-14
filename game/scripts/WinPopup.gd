@@ -4,6 +4,7 @@ extends Control
 ## and a single, unmissable "next level" action.
 
 const UI := preload("res://scripts/UIKit.gd")
+const ArtL := preload("res://scripts/Art.gd")
 const JuicyBtn := preload("res://scripts/JuicyButton.gd")
 
 signal next_pressed
@@ -134,18 +135,102 @@ func setup(level_id: int, stars: int, reward: int, bonus_count: int) -> void:
 	if level_id < Game.total_levels():
 		next_btn.set_text("مرحله " + Game.fa_num(level_id + 1))
 	_animate_stars(stars)
+	_fly_coins(6 + stars * 3)
+
+
+func _build() -> void:
+	var dim := ColorRect.new()
+	dim.color = Color(0.05, 0.03, 0.01, 0.62)
+	dim.set_anchors_preset(Control.PRESET_FULL_RECT)
+	add_child(dim)
+
+	card = UI.card(Vector2(900, 1120), 44, Color("#fdf6e6"), true)
+	card.position = Vector2(90, 390)
+	add_child(card)
+
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 22)
+	col.alignment = BoxContainer.ALIGNMENT_CENTER
+	UI.card_add(card, col, 40.0)
+
+	title = UI.label("مرحله کامل شد!", 54, UI.TEXT_DARK)
+	col.add_child(title)
+
+	stars_box = HBoxContainer.new()
+	stars_box.alignment = BoxContainer.ALIGNMENT_CENTER
+	stars_box.add_theme_constant_override("separation", 18)
+	stars_box.custom_minimum_size = Vector2(0, 190)
+	col.add_child(stars_box)
+
+	# ردیف جایزه: سکه + مقدار
+	var rrow := HBoxContainer.new()
+	rrow.alignment = BoxContainer.ALIGNMENT_CENTER
+	rrow.add_theme_constant_override("separation", 18)
+	reward_label = UI.label("+۰", 66, Color("#c98a12"))
+	rrow.add_child(reward_label)
+	var coin := TextureRect.new()
+	coin.texture = load("res://assets/icons/coin.png")
+	coin.custom_minimum_size = Vector2(92, 92)
+	coin.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	coin.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	rrow.add_child(coin)
+	var coin_pulse := coin.create_tween().set_loops()
+	coin_pulse.set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	coin_pulse.tween_property(coin, "scale", Vector2(1.12, 1.12), 0.7)
+	coin_pulse.tween_property(coin, "scale", Vector2.ONE, 0.7)
+	coin.pivot_offset = Vector2(46, 46)
+	col.add_child(rrow)
+
+	bonus_line = UI.label("", 32, UI.INK_SOFT)
+	col.add_child(bonus_line)
+
+	var next_btn := JuicyBtn.new()
+	next_btn.text = "مرحلهٔ بعد"
+	next_btn.icon_path = "res://assets/icons/btn_play.png"
+	next_btn.base_color = Color("#57c22c")
+	next_btn.shadow_color = Color("#2f7a1c")
+	next_btn.font_size = 52
+	next_btn.corner = 40.0
+	next_btn.depth = 15.0
+	next_btn.idle_pulse = true
+	next_btn.shine = true
+	next_btn.custom_minimum_size = Vector2(700, 158)
+	next_btn.pressed.connect(func(): next_pressed.emit())
+	col.add_child(next_btn)
+
+	var map_btn := JuicyBtn.new()
+	map_btn.text = "بازگشت به نقشه"
+	map_btn.base_color = Color("#c9a86a")
+	map_btn.shadow_color = Color("#8a7048")
+	map_btn.font_size = 34
+	map_btn.corner = 30.0
+	map_btn.depth = 11.0
+	map_btn.custom_minimum_size = Vector2(560, 112)
+	map_btn.pressed.connect(func(): map_pressed.emit())
+	col.add_child(map_btn)
+
+	UI.pop_in(card)
+	_confetti()
 
 
 func _animate_stars(count: int) -> void:
 	for c in stars_box.get_children():
 		c.queue_free()
 	for i in 3:
+		var holder := Control.new()
+		holder.custom_minimum_size = Vector2(150, 150)
+		holder.size = holder.custom_minimum_size
+		var glow := ArtL.glow_disc(200, Color("#ffe08a"))
+		glow.position = Vector2(-25, -25)
+		glow.modulate.a = 0.0
+		holder.add_child(glow)
 		var s := TextureRect.new()
 		s.texture = load("res://assets/icons/star_grey.png")
 		s.custom_minimum_size = Vector2(130, 130)
 		s.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
 		s.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
-		stars_box.add_child(s)
+		holder.add_child(s)
+		stars_box.add_child(holder)
 		if i < count:
 			var idx := i
 			var t := get_tree().create_timer(0.45 + float(idx) * 0.32)

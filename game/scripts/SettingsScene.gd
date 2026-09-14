@@ -170,6 +170,7 @@ func _reset_card() -> Control:
 			Audio.play("word_bad")
 			return
 		Game.reset_progress()
+		_close_dialog()
 		Audio.play("unlock")
 		Transition.change_scene("res://scenes/HomeScene.tscn"))
 	hb.add_child(btn)

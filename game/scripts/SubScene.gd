@@ -5,7 +5,7 @@ class_name SubScene
 ## bottom navigation as the home screen — so no screen ever has an empty band.
 
 const UI := preload("res://scripts/UIKit.gd")
-const IconBtn := preload("res://scripts/IconButton.gd")
+const ArtL := preload("res://scripts/Art.gd")
 
 @export var screen_title := "صفحه"
 ## which music track this screen plays (see Audio.SPECS)
@@ -16,6 +16,7 @@ var nav_key := "home"
 var bg_path := "res://assets/art/bg_home.png"
 
 var body: VBoxContainer
+var scroll: ScrollContainer
 var coin_label: Label
 var gem_label: Label
 
@@ -29,6 +30,11 @@ func _ready() -> void:
 	Audio.set_section(section)
 
 
+func build_body() -> void:
+	pass
+
+
+# ------------------------------------------------------------------- chrome
 func _build_chrome() -> void:
 	set_anchors_preset(Control.PRESET_FULL_RECT)
 
@@ -53,6 +59,8 @@ func _build_chrome() -> void:
 	back.position = Vector2(26, 42)
 	back.pressed.connect(func(): _go_home(back))
 	add_child(back)
+	_add_hit(Vector2(122, 122), Vector2(26, 42),
+		func(): Transition.change_scene("res://scenes/HomeScene.tscn"))
 
 	var title := UI.glass_card(30, Color(0.30, 0.18, 0.07, 0.86), 26)
 	title.position = Vector2(286, 40)
@@ -129,16 +137,80 @@ func _on_nav(key: String) -> void:
 		"themes": Transition.change_scene("res://scenes/ThemesScene.tscn")
 
 
-func build_body() -> void:
-	pass  # overridden
+func _nav_items() -> Array:
+	return [
+		{"icon": "res://assets/icons/home.png", "label": "خانه"},
+		{"icon": "res://assets/icons/trophy.png", "label": "پروفایل"},
+		{"icon": "res://assets/icons/book.png", "label": "کتابخانه"},
+		{"icon": "res://assets/icons/quests.png", "label": "ماموریت‌ها"},
+		{"icon": "res://assets/icons/settings.png", "label": "تنظیمات"},
+	]
 
 
-## staggered entrance for whatever build_body() produced
-func animate_cards() -> void:
+func _on_nav(i: int) -> void:
+	var scenes := [
+		"res://scenes/HomeScene.tscn", "res://scenes/ProfileScene.tscn",
+		"res://scenes/LibraryScene.tscn", "res://scenes/QuestsScene.tscn",
+		"res://scenes/SettingsScene.tscn",
+	]
+	if i >= 0 and i < scenes.size():
+		Transition.change_scene(scenes[i])
+
+
+func _add_hit(size: Vector2, pos: Vector2, cb: Callable) -> Control:
+	var hit := Control.new()
+	hit.position = pos
+	hit.size = size
+	hit.mouse_filter = Control.MOUSE_FILTER_STOP
+	hit.gui_input.connect(func(e: InputEvent) -> void:
+		if (e is InputEventScreenTouch or e is InputEventMouseButton) and e.pressed:
+			Audio.play("tap")
+			cb.call())
+	add_child(hit)
+	return hit
+
+
+# ------------------------------------------------------------------- helpers
+func card(height: float = 170.0, radius: int = 30, base: Color = UI.CREAM,
+		wooden: bool = false) -> Control:
+	var c := UI.card(Vector2(984, height), radius, base, wooden)
+	body.add_child(c)
+	return c
+
+
+func section(text: String) -> Control:
+	var h := UI.section_header(text, 984)
+	body.add_child(h)
+	return h
+
+
+func spacer(h: float = 8.0) -> void:
+	var s := Control.new()
+	s.custom_minimum_size = Vector2(0, h)
+	body.add_child(s)
+
+
+func toast(msg: String) -> void:
+	var t := UI.make_toast(msg)
+	add_child(t)
+	t.position = Vector2(UI.SCREEN.x * 0.5 - t.size.x * 0.5, UI.SCREEN.y * 0.52)
+
+
+func rebuild() -> void:
+	for ch in body.get_children():
+		ch.queue_free()
 	await get_tree().process_frame
-	for i in body.get_child_count():
-		var c := body.get_child(i) as Control
-		if c == null:
+	build_body()
+	_stagger_cards()
+
+
+## ورود پله‌ای کارت‌ها (حس زنده بودن صفحه)
+func _stagger_cards() -> void:
+	await get_tree().process_frame
+	var i := 0
+	for c in body.get_children():
+		var ctrl := c as Control
+		if ctrl == null:
 			continue
 		# only touch properties the container does not own (position/size are
 		# managed by VBoxContainer; animating them left cards offset)

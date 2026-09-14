@@ -6,7 +6,10 @@ class_name JuicyButton
 
 signal pressed
 
+const ArtL := preload("res://scripts/Art.gd")
+
 @export var text := ""
+@export var subtitle := ""
 @export var icon_path := ""
 @export var base_color := Color("#63c132")
 @export var shadow_color := Color("#3f8c1f")
@@ -22,6 +25,7 @@ var _body: Control
 var _shadow: TextureRect
 var _face: TextureRect
 var _label: Label
+var _sub: Label
 var _icon: TextureRect
 var _glow: TextureRect
 var _disabled := false
@@ -30,6 +34,10 @@ var _base_icon_box := 0.0
 
 func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
+	if custom_minimum_size == Vector2.ZERO:
+		custom_minimum_size = Vector2(560, 140)
+	if size == Vector2.ZERO:
+		size = custom_minimum_size
 	_build()
 	resized.connect(_relayout)
 	if idle_pulse:
@@ -93,6 +101,7 @@ func _build() -> void:
 		_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		content.add_child(_label)
 	_relayout()
+	_retex()
 
 
 func _relayout() -> void:
@@ -137,6 +146,12 @@ func set_text(t: String) -> void:
 	text = t
 	if _label:
 		_label.text = t
+
+
+func set_subtitle(t: String) -> void:
+	subtitle = t
+	if _sub:
+		_sub.text = t
 
 
 # ------------------------------------------------------------------ input
@@ -214,6 +229,7 @@ func _start_idle() -> void:
 	tw.tween_property(_body, "scale", Vector2.ONE, 1.1)
 
 
+## درخشش نرمی که هر چند ثانیه از روی دکمه عبور می‌کند
 func _start_shine() -> void:
 	var sh := TextureRect.new()
 	sh.texture = UIKit.gradient_tex(70, 260, 34, Color(1, 1, 1, 0.30), Color(1, 1, 1, 0.0),
